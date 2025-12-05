@@ -61,13 +61,17 @@ router.get('/', async (req, res) => {
   <style>
     body { margin:0; padding:1.5rem; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#f7eee7; }
     .page { max-width: 720px; margin: 0 auto; }
-    .brand { font-weight:600; letter-spacing:0.12em; font-size:0.8rem; color:#b66b4d; text-transform:uppercase; margin-bottom:0.5rem; }
+    .brand { font-weight:600; letter-spacing:0.12em; font-size:0.8rem; color:#b66b4d; text-transform:uppercase; margin-bottom:0.75rem; }
     .card { background:#ffffff; border-radius:24px; padding:1.75rem 2rem; box-shadow:0 18px 45px rgba(0,0,0,0.08); }
-    .card-header { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; margin-bottom:1.25rem; }
-    .name-block { flex:1; }
-    .name { font-size:1.5rem; font-weight:600; color:#333; margin:0 0 0.25rem 0; }
-    .position { font-size:0.95rem; color:#777; margin:0 0 0.4rem 0; }
-    .company { font-size:0.95rem; color:#444; font-weight:500; }
+    .card-header { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1.25rem; }
+    .logo-circle { width:44px; height:44px; border-radius:50%; background:#f2e3d8; display:flex; align-items:center; justify-content:center; font-size:1.1rem; color:#b66b4d; font-weight:600; }
+    .header-text { flex:1; text-align:right; }
+    .header-company { font-size:0.95rem; font-weight:600; color:#444; }
+    .name-block { margin-bottom:0.75rem; }
+    .name { font-size:1.5rem; font-weight:600; color:#333; margin:0 0 0.1rem 0; }
+    .name-divider { width:56px; height:2px; background:#b66b4d; border-radius:999px; margin:0.25rem 0 0.4rem 0; }
+    .position { font-size:0.95rem; color:#777; margin:0 0 0.25rem 0; }
+    .company-line { font-size:0.95rem; color:#444; font-weight:500; }
     .info-row { display:flex; align-items:center; font-size:0.95rem; color:#444; margin:0.25rem 0; }
     .info-label { min-width:4.75rem; font-weight:500; color:#666; }
     .info-value { flex:1; }
@@ -85,11 +89,16 @@ router.get('/', async (req, res) => {
     <div class="brand">Cœur Du Ciel · Digital NameCard</div>
     <section class="card">
       <div class="card-header">
-        <div class="name-block">
-          <h1 class="name">${fullName || 'Contact'}</h1>
-          ${card.position ? `<p class="position">${esc(card.position)}</p>` : ''}
-          ${card.company ? `<p class="company">${esc(card.company)}</p>` : ''}
+        <div class="logo-circle">☘</div>
+        <div class="header-text">
+          ${card.company ? `<div class="header-company">${esc(card.company)}</div>` : ''}
         </div>
+      </div>
+      <div class="name-block">
+        <h1 class="name">${fullName || 'Contact'}</h1>
+        <div class="name-divider"></div>
+        ${card.position ? `<p class="position">${esc(card.position)}</p>` : ''}
+        ${card.company ? `<p class="company-line">${esc(card.company)}</p>` : ''}
       </div>
       <div>
         ${card.mobile ? `<div class="info-row"><div class="info-label">Mobile</div><div class="info-value">${esc(card.mobile)}</div></div>` : ''}
