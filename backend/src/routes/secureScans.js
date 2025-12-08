@@ -19,6 +19,22 @@ router.get('/', async (req, res) => {
   }
 
   try {
+    // First get user's tenant_id from the users table
+    const userResult = await pool.query(
+      'SELECT tenant_id FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'User not found.'
+      });
+    }
+
+    const tenantId = userResult.rows[0].tenant_id;
+
+    // Get scans only for cards that belong to the user's tenant
     const result = await pool.query(
       `SELECT
          s.id,
@@ -32,13 +48,16 @@ router.get('/', async (req, res) => {
          c.email,
          c.mobile
        FROM scans s
-       LEFT JOIN cards c ON c.id = s.card_id
+       JOIN cards c ON c.id = s.card_id
+       WHERE c.tenant_id = $1
        ORDER BY s.created_at DESC
-       LIMIT 100`
+       LIMIT 100`,
+      [tenantId]
     );
 
     res.json({
       success: true,
+      tenant_id: tenantId, // For debugging
       user: req.user,
       scans: result.rows
     });
