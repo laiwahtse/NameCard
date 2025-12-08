@@ -30,6 +30,8 @@ router.get('/', (_req, res) => {
     tbody tr:nth-child(even) { background:#faf5f0; }
     tbody tr:hover { background:#f3e7dd; }
     .muted { font-size:0.8rem; color:#777; }
+    .stats-row { display:flex; flex-wrap:wrap; gap:0.6rem; margin:0.4rem 0 0.8rem 0; }
+    .stat-pill { padding:0.3rem 0.7rem; border-radius:999px; font-size:0.78rem; background:#f1e0d4; color:#5b3b2a; }
   </style>
 </head>
 <body>
@@ -68,6 +70,7 @@ router.get('/', (_req, res) => {
           <button id="signOutBtn" class="btn" style="border-color:#aa3d3d; color:#aa3d3d;">Sign out</button>
         </div>
       </div>
+      <div id="statsRow" class="stats-row" style="display:none;"></div>
       <div id="scansTableWrapper">
         <p class="muted">No data loaded yet.</p>
       </div>
@@ -86,6 +89,7 @@ router.get('/', (_req, res) => {
       const userInfo = document.getElementById('userInfo');
       const refreshBtn = document.getElementById('refreshBtn');
       const signOutBtn = document.getElementById('signOutBtn');
+      const statsRow = document.getElementById('statsRow');
 
       let authToken = null;
 
@@ -95,9 +99,42 @@ router.get('/', (_req, res) => {
       }
 
       function renderScans(scans) {
+        // Update stats first
         if (!scans || !scans.length) {
           scansTableWrapper.innerHTML = '<p class="muted">No scans found yet.</p>';
+          if (statsRow) {
+            statsRow.style.display = 'none';
+            statsRow.innerHTML = '';
+          }
           return;
+        }
+
+        var totalScans = scans.length;
+        var cardIds = {};
+        var now = new Date();
+        var sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        var last7Days = 0;
+
+        scans.forEach(function(row) {
+          if (row.card_id != null) {
+            cardIds[row.card_id] = true;
+          }
+          if (row.created_at) {
+            var dt = new Date(row.created_at);
+            if (!isNaN(dt.getTime()) && dt >= sevenDaysAgo) {
+              last7Days += 1;
+            }
+          }
+        });
+
+        var uniqueCards = Object.keys(cardIds).length;
+
+        if (statsRow) {
+          statsRow.style.display = 'flex';
+          statsRow.innerHTML = '' +
+            '<div class="stat-pill">Total scans: ' + totalScans + '</div>' +
+            '<div class="stat-pill">Unique cards: ' + uniqueCards + '</div>' +
+            '<div class="stat-pill">Last 7 days: ' + last7Days + '</div>';
         }
 
         var header = '' +
