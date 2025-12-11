@@ -68,4 +68,231 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// --- User management helpers (for /secure-users) ---
+
+// Build a simple user object from DB row
+function mapUserRow(row) {
+  return {
+    id: row.id,
+    tenant_id: row.tenant_id,
+    email: row.email,
+    role: row.role,
+    display_name: row.display_name
+  };
+}
+
+// GET /auth/users/me
+// Returns current user info and the list of users they are allowed to see.
+router.get('/users/me', async (req, res) => {
+  const authHeader = req.header('x-auth-token');
+  const token = authHeader && authHeader.trim();
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required.'
+    });
+  }
+
+  // Reuse the same login token format: userId:tenantId
+  const [userIdPart] = token.split(':');
+  const userId = parseInt(userIdPart, 10);
+
+  if (!Number.isFinite(userId)) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid auth token.'
+    });
+  }
+
+  try {
+    const meResult = await pool.query(
+      'SELECT id, tenant_id, email, role, display_name FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (meResult.rowCount === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found for this token.'
+      });
+    }
+
+    const me = meResult.rows[0];
+
+    let usersResult;
+    let canViewUsers = false;
+    const allowedRoles = [];
+
+    if (me.role === 'cdc_admin') {
+      // CDC admin: can see all users, can create tenant_admin/manager/employee
+      usersResult = await pool.query(
+        'SELECT id, tenant_id, email, role, display_name FROM users ORDER BY email'
+      );
+      canViewUsers = true;
+      allowedRoles.push(
+        { value: 'tenant_admin', label: 'Client admin (tenant_admin)' },
+        { value: 'manager', label: 'Manager (manager)' },
+        { value: 'employee', label: 'Employee (employee)' }
+      );
+    } else if (me.role === 'tenant_admin') {
+      // Tenant admin: can see only their tenant users, can create manager/employee
+      usersResult = await pool.query(
+        'SELECT id, tenant_id, email, role, display_name FROM users WHERE tenant_id = $1 ORDER BY email',
+        [me.tenant_id]
+      );
+      canViewUsers = true;
+      allowedRoles.push(
+        { value: 'manager', label: 'Manager (manager)' },
+        { value: 'employee', label: 'Employee (employee)' }
+      );
+    } else {
+      // Other roles: no management rights
+      usersResult = { rows: [] };
+      canViewUsers = false;
+    }
+
+    const users = (usersResult.rows || []).map(mapUserRow);
+
+    return res.json({
+      success: true,
+      me: {
+        id: me.id,
+        tenantId: me.tenant_id,
+        email: me.email,
+        role: me.role,
+        displayName: me.display_name
+      },
+      users,
+      canViewUsers,
+      allowedRoles
+    });
+  } catch (err) {
+    console.error('Error loading users for /auth/users/me:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while loading users.'
+    });
+  }
+});
+
+// POST /auth/users
+// Creates a user, enforcing creator role rules.
+router.post('/users', async (req, res) => {
+  const authHeader = req.header('x-auth-token');
+  const token = authHeader && authHeader.trim();
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required.'
+    });
+  }
+
+  const [userIdPart] = token.split(':');
+  const userId = parseInt(userIdPart, 10);
+
+  if (!Number.isFinite(userId)) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid auth token.'
+    });
+  }
+
+  const { email, displayName, password, role, tenantId } = req.body || {};
+
+  if (!email || !password || !role) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing email, password or role.'
+    });
+  }
+
+  try {
+    const meResult = await pool.query(
+      'SELECT id, tenant_id, role FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (meResult.rowCount === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found for this token.'
+      });
+    }
+
+    const me = meResult.rows[0];
+
+    let targetTenantId = null;
+    const normalizedEmail = email.toLowerCase();
+
+    if (me.role === 'cdc_admin') {
+      // CDC admin can choose tenant and role (but not create cdc_admin via this route)
+      if (!tenantId) {
+        return res.status(400).json({
+          success: false,
+          message: 'tenantId is required when creating users as CDC admin.'
+        });
+      }
+
+      if (!['tenant_admin', 'manager', 'employee'].includes(role)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid role for CDC admin. Allowed: tenant_admin, manager, employee.'
+        });
+      }
+
+      targetTenantId = tenantId;
+    } else if (me.role === 'tenant_admin') {
+      // Tenant admin can only create manager/employee in their own tenant
+      if (!['manager', 'employee'].includes(role)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Tenant admin can only create manager or employee users.'
+        });
+      }
+
+      targetTenantId = me.tenant_id;
+    } else {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to create users.'
+      });
+    }
+
+    // Ensure email is unique
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [normalizedEmail]
+    );
+
+    if (existing.rowCount > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'A user with this email already exists.'
+      });
+    }
+
+    const insertResult = await pool.query(
+      `INSERT INTO users (tenant_id, email, password_hash, role, display_name)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, tenant_id, email, role, display_name`,
+      [targetTenantId, normalizedEmail, password, role, displayName || null]
+    );
+
+    const newUser = mapUserRow(insertResult.rows[0]);
+
+    return res.status(201).json({
+      success: true,
+      user: newUser
+    });
+  } catch (err) {
+    console.error('Error creating user via /auth/users:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while creating user.'
+    });
+  }
+});
+
 export default router;
