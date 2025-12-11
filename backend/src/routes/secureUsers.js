@@ -107,9 +107,8 @@ router.get('/', (req, res) => {
       var createStatus = document.getElementById('createStatus');
       var changeTokenBtn = document.getElementById('changeTokenBtn');
 
-      // For now this page relies on the same token header as secure dashboard.
-      // You can open it in a new tab and paste the token manually if needed,
-      // or later wire a shared storage.
+      // This page reuses the auth token stored by the secure dashboard in
+      // localStorage. If not present, it will ask once via prompt.
       var authToken = null;
 
       function setStatus(el, message, type) {
@@ -291,15 +290,40 @@ router.get('/', (req, res) => {
           authToken = window.prompt('Enter auth token (x-auth-token) for user management page:') || '';
           if (authToken) {
             authToken = authToken.trim();
+            try {
+              window.localStorage.setItem('nc_auth_token', authToken);
+            } catch (e) {
+              console.error('Error storing token from change user:', e);
+            }
+          } else {
+            try {
+              window.localStorage.removeItem('nc_auth_token');
+              window.localStorage.removeItem('nc_auth_user');
+            } catch (e) {
+              console.error('Error clearing auth from localStorage:', e);
+            }
           }
           loadUsers();
         });
       }
 
-      // TEMP: ask for token once when loading page.
-      authToken = window.prompt('Enter auth token (x-auth-token) for user management page:') || '';
-      if (authToken) {
-        authToken = authToken.trim();
+      // On first load, reuse token from localStorage if possible, otherwise prompt once.
+      try {
+        authToken = window.localStorage.getItem('nc_auth_token') || '';
+      } catch (e) {
+        console.error('Error reading auth token from localStorage:', e);
+        authToken = '';
+      }
+      if (!authToken) {
+        authToken = window.prompt('Enter auth token (x-auth-token) for user management page:') || '';
+        if (authToken) {
+          authToken = authToken.trim();
+          try {
+            window.localStorage.setItem('nc_auth_token', authToken);
+          } catch (e) {
+            console.error('Error storing token from prompt:', e);
+          }
+        }
       }
       loadUsers();
     })();

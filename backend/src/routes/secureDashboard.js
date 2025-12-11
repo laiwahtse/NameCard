@@ -126,6 +126,23 @@ router.get('/', (_req, res) => {
         loginStatus.className = 'status' + (type ? ' ' + type : '');
       }
 
+      function loadAuthFromStorage() {
+        try {
+          var storedToken = window.localStorage.getItem('nc_auth_token');
+          var storedUserJson = window.localStorage.getItem('nc_auth_user');
+          if (storedToken && storedUserJson) {
+            var storedUser = JSON.parse(storedUserJson);
+            authToken = storedToken;
+            userInfo.textContent = 'Signed in as ' + (storedUser.displayName || storedUser.email || 'user') + ' (' + storedUser.role + ')';
+            loginSection.style.display = 'none';
+            scansSection.style.display = 'block';
+            fetchScans();
+          }
+        } catch (e) {
+          console.error('Error loading auth from storage:', e);
+        }
+      }
+
       function renderScans(scans) {
         // Update stats first
         if (!scans || !scans.length) {
@@ -323,7 +340,7 @@ router.get('/', (_req, res) => {
           .then(function(resp) { return resp.json(); })
           .then(function(data) {
             loginBtn.disabled = false;
-            if (!data || !data.success) {
+            if (!data || !data.success || !data.token || !data.user) {
               setStatus((data && data.message) || 'Login failed.', 'error');
               return;
             }
@@ -331,8 +348,12 @@ router.get('/', (_req, res) => {
             setStatus('Signed in.', 'ok');
             loginSection.style.display = 'none';
             scansSection.style.display = 'block';
-            if (data.user) {
-              userInfo.textContent = 'Signed in as ' + (data.user.displayName || data.user.email || 'user') + ' (' + (data.user.role || 'role') + ')';
+            userInfo.textContent = 'Signed in as ' + (data.user.displayName || data.user.email || 'user') + ' (' + data.user.role + ')';
+            try {
+              window.localStorage.setItem('nc_auth_token', authToken);
+              window.localStorage.setItem('nc_auth_user', JSON.stringify(data.user));
+            } catch (e) {
+              console.error('Error storing auth in localStorage:', e);
             }
             fetchScans();
           })
@@ -379,7 +400,16 @@ router.get('/', (_req, res) => {
         passwordInput.value = '';
         setStatus('', '');
         scansTableWrapper.innerHTML = '<p class="muted">No data loaded yet.</p>';
+        try {
+          window.localStorage.removeItem('nc_auth_token');
+          window.localStorage.removeItem('nc_auth_user');
+        } catch (e) {
+          console.error('Error clearing auth from localStorage:', e);
+        }
       });
+
+      // On first load, try to reuse existing auth
+      loadAuthFromStorage();
     })();
   </script>
 </body>
