@@ -2,18 +2,27 @@
 
 This folder contains the **Name Card QR Generator** and a small **client CRM/Scanner** that we built together.
 
-## Quick start – Secure Scan Dashboard (Render)
+## Quick start – Secure Scan Dashboard & User Management (Render)
 
 - Secure dashboard URL (production): `https://namecard-17wq.onrender.com/secure-dashboard`
-- The old `/dashboard` URL now redirects to this secure page.
+- Secure user management URL: `https://namecard-17wq.onrender.com/secure-users`
+- The old `/dashboard` URL now redirects to the secure dashboard.
 - Log in with a user stored in the Neon `users` table, for example:
-  - Admin demo: `laiwah76@gmail.com` (role `tenant_admin`)
-  - Viewer demo: `rosetse101@gmail.com` (role `tenant_user`)
-- After admin login you will see:
+  - CDC admin demo: `admin@example.com` (role `cdc_admin`)
+  - Client admin demo: `laiwah76@gmail.com` (role `tenant_admin`)
+  - Manager/employee demo: e.g. `manager@example.com` / `employee@example.com` (roles `manager`, `employee`)
+- After admin login on `/secure-dashboard` you will see:
   - Tenant‑filtered scan table.
   - Stats (total scans, unique cards, last 7 days).
   - Filters (search, source, from/to dates).
-- Non‑admin users can sign in but will see an "admin only" message instead of the scans.
+- Role behavior on `/secure-dashboard`:
+  - `cdc_admin`, `tenant_admin`, `manager`, `employee` can all sign in.
+  - Only admin roles are allowed to view scans; others see an explanation message instead of data.
+- Role behavior on `/secure-users`:
+  - `cdc_admin` can manage users for **all tenants** (create client admins and staff, disable/activate any account) and see a small deletion audit log.
+  - `tenant_admin` can manage **only their own tenant** staff (`manager`, `employee`): create, disable, activate.
+  - `manager` and `employee` can open the page but it is read‑only (no create/disable/activate buttons).
+  - Disabled accounts can no longer log in but still appear in the list with a `Disabled` status; admins can re‑activate them.
 
 ## 1. Main parts
 

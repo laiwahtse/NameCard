@@ -90,6 +90,13 @@ router.get('/', (req, res) => {
         <p class="muted">No users to display.</p>
       </div>
     </section>
+
+    <section class="section" id="audit-section" style="display:none;">
+      <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Recent account changes (CDC admin)</h2>
+      <div id="auditTableWrapper">
+        <p class="muted">No audit entries yet.</p>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -98,6 +105,8 @@ router.get('/', (req, res) => {
       var accessNote = document.getElementById('accessNote');
       var createSection = document.getElementById('create-section');
       var listSection = document.getElementById('list-section');
+      var auditSection = document.getElementById('audit-section');
+      var auditTableWrapper = document.getElementById('auditTableWrapper');
       var usersTableWrapper = document.getElementById('usersTableWrapper');
       var newEmail = document.getElementById('newEmail');
       var newDisplayName = document.getElementById('newDisplayName');
@@ -190,6 +199,14 @@ router.get('/', (req, res) => {
 
             currentUserInfo.textContent = 'Signed in as ' + (me.displayName || me.email || 'user') + ' (' + me.role + ')';
 
+            if (me.role === 'cdc_admin') {
+              accessNote.textContent = 'CDC admin: you can manage users across all tenants and review the deletion audit log below.';
+            } else if (me.role === 'tenant_admin') {
+              accessNote.textContent = 'Tenant admin: you can create and manage manager/employee accounts for your own tenant only.';
+            } else {
+              accessNote.textContent = 'This page is read-only for your role. You cannot create or change users.';
+            }
+
             if (data.allowedRoles && data.allowedRoles.length) {
               newRole.innerHTML = data.allowedRoles.map(function(r) {
                 return '<option value="' + esc(r.value) + '">' + esc(r.label) + '</option>';
@@ -264,6 +281,61 @@ router.get('/', (req, res) => {
                     }
                   });
                 });
+              }
+
+              if (me.role === 'cdc_admin') {
+                if (auditSection) {
+                  auditSection.style.display = 'block';
+                }
+                if (auditTableWrapper) {
+                  fetch('/auth/user-deletions', {
+                    headers: { 'x-auth-token': authToken }
+                  })
+                    .then(function(resp) { return resp.json(); })
+                    .then(function(auditData) {
+                      if (!auditData || !auditData.success) {
+                        auditTableWrapper.innerHTML = '<p class="muted">Unable to load audit log.</p>';
+                        return;
+                      }
+                      var rows = auditData.deletions || [];
+                      if (!rows.length) {
+                        auditTableWrapper.innerHTML = '<p class="muted">No deletion records yet.</p>';
+                        return;
+                      }
+
+                      var header = '' +
+                        '<table>' +
+                          '<thead>' +
+                            '<tr>' +
+                              '<th>When</th>' +
+                              '<th>Tenant</th>' +
+                              '<th>User</th>' +
+                              '<th>Requested by</th>' +
+                              '<th>Reason</th>' +
+                            '</tr>' +
+                          '</thead>' +
+                          '<tbody>';
+
+                      var body = rows.map(function(r) {
+                        return '<tr>' +
+                          '<td>' + esc(r.created_at) + '</td>' +
+                          '<td>' + esc(r.tenant_name || '') + '</td>' +
+                          '<td>' + esc(r.user_email || ('ID ' + r.user_id)) + '</td>' +
+                          '<td>' + esc(r.requested_by_email || ('ID ' + r.requested_by)) + '</td>' +
+                          '<td>' + esc(r.reason || '') + '</td>' +
+                          '</tr>';
+                      }).join('');
+
+                      var footer = '</tbody></table>';
+                      auditTableWrapper.innerHTML = header + body + footer;
+                    })
+                    .catch(function(err) {
+                      console.error('Error loading audit log:', err);
+                      auditTableWrapper.innerHTML = '<p class="muted">Error while loading audit log.</p>';
+                    });
+                }
+              } else if (auditSection) {
+                auditSection.style.display = 'none';
               }
             } else {
               listSection.style.display = 'none';

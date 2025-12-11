@@ -541,4 +541,79 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
+// GET /auth/user-deletions
+// CDC admin only: returns recent user deletion audit records.
+router.get('/user-deletions', async (req, res) => {
+  const authHeader = req.header('x-auth-token');
+  const token = authHeader && authHeader.trim();
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required.'
+    });
+  }
+
+  const [userIdPart] = token.split(':');
+  const requesterId = parseInt(userIdPart, 10);
+
+  if (!Number.isFinite(requesterId)) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid auth token.'
+    });
+  }
+
+  try {
+    const meResult = await pool.query(
+      'SELECT id, role FROM users WHERE id = $1',
+      [requesterId]
+    );
+
+    if (meResult.rowCount === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found for this token.'
+      });
+    }
+
+    const me = meResult.rows[0];
+    if (me.role !== 'cdc_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only CDC admins can view the deletion audit log.'
+      });
+    }
+
+    const auditResult = await pool.query(
+      `SELECT d.id,
+              d.user_id,
+              u.email AS user_email,
+              d.tenant_id,
+              t.name AS tenant_name,
+              d.requested_by,
+              rb.email AS requested_by_email,
+              d.reason,
+              d.created_at
+         FROM user_deletions d
+         LEFT JOIN users u ON u.id = d.user_id
+         LEFT JOIN users rb ON rb.id = d.requested_by
+         LEFT JOIN tenants t ON t.id = d.tenant_id
+         ORDER BY d.created_at DESC
+         LIMIT 50`
+    );
+
+    return res.json({
+      success: true,
+      deletions: auditResult.rows || []
+    });
+  } catch (err) {
+    console.error('Error loading user_deletions audit log:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while loading deletion audit log.'
+    });
+  }
+});
+
 export default router;

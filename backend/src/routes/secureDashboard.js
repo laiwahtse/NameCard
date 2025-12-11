@@ -38,7 +38,7 @@ router.get('/', (_req, res) => {
   <main class="page">
     <div class="brand">Cœur Du Ciel · Digital NameCard</div>
     <h1>Secure Scan Dashboard</h1>
-    <p class="muted">Sign in with your admin account to view scans using the protected API.</p>
+    <p class="muted">Sign in with your NameCard account. Tenant and CDC admins can view scans; other roles will see an access message instead of data.</p>
 
     <section class="section" id="login-section">
       <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Admin sign in</h2>
