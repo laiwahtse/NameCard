@@ -92,6 +92,24 @@ router.get('/', (req, res) => {
       <div id="createStatus" class="status"></div>
     </section>
 
+    <section class="section" id="tenant-create-section" style="display:none;">
+      <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Create company / tenant (CDC admin)</h2>
+      <div class="grid">
+        <div>
+          <label for="newTenantName">Company / Tenant name</label>
+          <input type="text" id="newTenantName" />
+        </div>
+        <div>
+          <label for="newTenantSlug">Slug (optional)</label>
+          <input type="text" id="newTenantSlug" placeholder="auto-generated if empty" />
+        </div>
+      </div>
+      <div style="margin-top:0.8rem;">
+        <button id="createTenantBtn" class="btn">Add company</button>
+      </div>
+      <div id="createTenantStatus" class="status"></div>
+    </section>
+
     <section class="section" id="list-section" style="display:none;">
       <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Existing users</h2>
       <div id="userFilters" style="display:flex; flex-wrap:wrap; gap:0.6rem; margin:0 0 0.6rem 0; align-items:flex-end;">
@@ -174,6 +192,11 @@ router.get('/', (req, res) => {
       var createUserBtn = document.getElementById('createUserBtn');
       var createStatus = document.getElementById('createStatus');
       var changeTokenBtn = document.getElementById('changeTokenBtn');
+      var tenantCreateSection = document.getElementById('tenant-create-section');
+      var newTenantName = document.getElementById('newTenantName');
+      var newTenantSlug = document.getElementById('newTenantSlug');
+      var createTenantBtn = document.getElementById('createTenantBtn');
+      var createTenantStatus = document.getElementById('createTenantStatus');
 
       // This page reuses the auth token stored by the secure dashboard in
       // localStorage. If not present, it will ask once via prompt.
@@ -185,6 +208,12 @@ router.get('/', (req, res) => {
       function setStatus(el, message, type) {
         el.textContent = message || '';
         el.className = 'status' + (type ? ' ' + type : '');
+      }
+
+      function setSimpleStatus(el, message, type) {
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = (type ? type : '');
       }
 
       function esc(v) {
@@ -398,6 +427,9 @@ router.get('/', (req, res) => {
               if (tenantField) {
                 tenantField.style.display = 'block';
               }
+              if (tenantCreateSection) {
+                tenantCreateSection.style.display = 'block';
+              }
               if (newTenant) {
                 // Load tenants for the selector
                 fetch('/auth/tenants', {
@@ -425,10 +457,16 @@ router.get('/', (req, res) => {
               if (tenantField) {
                 tenantField.style.display = 'none';
               }
+              if (tenantCreateSection) {
+                tenantCreateSection.style.display = 'none';
+              }
             } else {
               accessNote.textContent = 'This page is read-only for your role. You cannot create or change users.';
               if (tenantField) {
                 tenantField.style.display = 'none';
+              }
+              if (tenantCreateSection) {
+                tenantCreateSection.style.display = 'none';
               }
             }
 
@@ -667,6 +705,55 @@ router.get('/', (req, res) => {
             setStatus(createStatus, 'Error while creating user.', 'error');
           });
       });
+
+      if (createTenantBtn) {
+        createTenantBtn.addEventListener('click', function() {
+          if (!authToken) {
+            setStatus(createTenantStatus, 'Missing auth token.', 'error');
+            return;
+          }
+
+          var name = (newTenantName && newTenantName.value || '').trim();
+          var slug = (newTenantSlug && newTenantSlug.value || '').trim();
+
+          if (!name) {
+            setStatus(createTenantStatus, 'Please enter a company / tenant name.', 'error');
+            return;
+          }
+
+          createTenantBtn.disabled = true;
+          setStatus(createTenantStatus, 'Creating company…', '');
+
+          fetch('/auth/tenants', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-auth-token': authToken
+            },
+            body: JSON.stringify({ name: name, slug: slug || undefined })
+          })
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+              createTenantBtn.disabled = false;
+              if (!data || !data.success || !data.tenant) {
+                setStatus(createTenantStatus, (data && data.message) || 'Failed to create company.', 'error');
+                return;
+              }
+
+              setStatus(createTenantStatus, 'Company created.', 'ok');
+              if (newTenantName) newTenantName.value = '';
+              if (newTenantSlug) newTenantSlug.value = '';
+
+              // Reload page data to refresh tenant list and filters
+              loadUsers();
+            })
+            .catch(function(err) {
+              console.error('Error creating tenant:', err);
+              createTenantBtn.disabled = false;
+              setStatus(createTenantStatus, 'Error while creating company.', 'error');
+            });
+        });
+      }
 
       if (changeTokenBtn) {
         changeTokenBtn.addEventListener('click', function() {
