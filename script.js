@@ -344,9 +344,8 @@
             return;
         }
 
-        // Determine QR mode (defaults to contact if not found)
-        var qrModeInput = document.querySelector('input[name="qrMode"]:checked');
-        var qrMode = qrModeInput ? qrModeInput.value : 'contact';
+        // Public builder: only allow contact/vCard QR (no database-backed mode here)
+        var qrMode = 'contact';
 
         var payload = {
             firstName: firstName,
@@ -362,35 +361,6 @@
             region: regionVal,
             zipCountry: zipCountryVal
         };
-
-        if (qrMode === 'database') {
-            // Database mode: call backend to create or update a card entry
-            // and receive a scan URL that can be encoded as a QR.
-            try {
-                fetch(NAMECARD_API_BASE + '/api/cards', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                })
-                    .then(function (res) { return res.json(); })
-                    .then(function (data) {
-                        if (!data || !data.success || !data.card || !data.card.scanUrl) {
-                            alert((data && data.message) || 'Online QR creation failed. Please try again later.');
-                            return;
-                        }
-
-                        renderQRCode(data.card.scanUrl);
-                    })
-                    .catch(function () {
-                        alert('Network error while creating online QR. Please check the connection or backend server.');
-                    });
-            } catch (e) {
-                alert('Unexpected error while creating online QR.');
-            }
-            return;
-        }
 
         var vcardText = buildVCard(payload);
         renderQRCode(vcardText);
