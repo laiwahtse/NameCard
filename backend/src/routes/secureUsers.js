@@ -131,8 +131,39 @@ router.get('/', (req, res) => {
 
     <section class="section" id="audit-section" style="display:none;">
       <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Recent account changes (CDC admin)</h2>
+      <div id="auditFilters" style="display:flex; flex-wrap:wrap; gap:0.6rem; margin:0 0 0.6rem 0; align-items:flex-end;">
+        <div>
+          <label for="filterAuditText" style="font-size:0.8rem; color:#444;">Search</label>
+          <input id="filterAuditText" type="text" placeholder="User, tenant, requested by, reason" style="width:260px; padding:0.35rem 0.55rem; border-radius:999px; border:1px solid #d9bca5; font-size:0.8rem;" />
+        </div>
+        <div>
+          <label for="filterAuditTenant" style="font-size:0.8rem; color:#444;">Company</label>
+          <select id="filterAuditTenant" style="width:200px; padding:0.35rem 0.55rem; border-radius:999px; border:1px solid #d9bca5; font-size:0.8rem; background:#fff;">
+            <option value="">All companies</option>
+          </select>
+        </div>
+      </div>
       <div id="auditTableWrapper">
         <p class="muted">No audit entries yet.</p>
+      </div>
+    </section>
+
+    <section class="section" id="render-tracked-repo-section" style="display:none;">
+      <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Render-tracked repo</h2>
+      <div id="render-tracked-repo-filters" style="display:flex; flex-wrap:wrap; gap:0.6rem; margin:0 0 0.6rem 0; align-items:flex-end;">
+        <div>
+          <label for="filterRenderTrackedRepoText" style="font-size:0.8rem; color:#444;">Search</label>
+          <input id="filterRenderTrackedRepoText" type="text" placeholder="User, tenant, requested by, reason" style="width:260px; padding:0.35rem 0.55rem; border-radius:999px; border:1px solid #d9bca5; font-size:0.8rem;" />
+        </div>
+        <div>
+          <label for="filterRenderTrackedRepoTenant" style="font-size:0.8rem; color:#444;">Company</label>
+          <select id="filterRenderTrackedRepoTenant" style="width:200px; padding:0.35rem 0.55rem; border-radius:999px; border:1px solid #d9bca5; font-size:0.8rem; background:#fff;">
+            <option value="">All companies</option>
+          </select>
+        </div>
+      </div>
+      <div id="render-tracked-repo-table-wrapper">
+        <p class="muted">No entries yet.</p>
       </div>
     </section>
   </main>
@@ -151,6 +182,8 @@ router.get('/', (req, res) => {
       var filterUserStatus = document.getElementById('filterUserStatus');
       var filterCompanyWrapper = document.getElementById('filterCompanyWrapper');
       var filterUserCompany = document.getElementById('filterUserCompany');
+      var filterAuditText = document.getElementById('filterAuditText');
+      var filterAuditTenant = document.getElementById('filterAuditTenant');
       var newEmail = document.getElementById('newEmail');
       var newDisplayName = document.getElementById('newDisplayName');
       var newPassword = document.getElementById('newPassword');
@@ -160,12 +193,17 @@ router.get('/', (req, res) => {
       var createUserBtn = document.getElementById('createUserBtn');
       var createStatus = document.getElementById('createStatus');
       var changeTokenBtn = document.getElementById('changeTokenBtn');
+      var filterRenderTrackedRepoText = document.getElementById('filterRenderTrackedRepoText');
+      var filterRenderTrackedRepoTenant = document.getElementById('filterRenderTrackedRepoTenant');
+      var renderTrackedRepoTableWrapper = document.getElementById('render-tracked-repo-table-wrapper');
 
       // This page reuses the auth token stored by the secure dashboard in
       // localStorage. If not present, it will ask once via prompt.
       var authToken = null;
       var currentMe = null;
       var allUsers = [];
+      var allAuditRows = [];
+      var allRenderTrackedRepoRows = [];
 
       function setStatus(el, message, type) {
         el.textContent = message || '';
@@ -270,6 +308,138 @@ router.get('/', (req, res) => {
         });
 
         renderUsers(filtered, canDeleteUsers);
+      }
+
+      function renderAuditRows(rows) {
+        if (!rows || !rows.length) {
+          auditTableWrapper.innerHTML = '<p class="muted">No deletion records yet.</p>';
+          return;
+        }
+
+        var header = '' +
+          '<table>' +
+            '<thead>' +
+              '<tr>' +
+                '<th>When</th>' +
+                '<th>Tenant</th>' +
+                '<th>User</th>' +
+                '<th>Requested by</th>' +
+                '<th>Reason</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>';
+
+        var body = rows.map(function(r) {
+          return '<tr>' +
+            '<td>' + esc(r.created_at) + '</td>' +
+            '<td>' + esc(r.tenant_name || '') + '</td>' +
+            '<td>' + esc(r.user_email || ('ID ' + r.user_id)) + '</td>' +
+            '<td>' + esc(r.requested_by_email || ('ID ' + r.requested_by)) + '</td>' +
+            '<td>' + esc(r.reason || '') + '</td>' +
+            '</tr>';
+        }).join('');
+
+        var footer = '</tbody></table>';
+        auditTableWrapper.innerHTML = header + body + footer;
+      }
+
+      function applyAuditFilters() {
+        var rows = allAuditRows || [];
+        if (!rows.length) {
+          renderAuditRows([]);
+          return;
+        }
+
+        var textVal = (filterAuditText && filterAuditText.value || '').toLowerCase().trim();
+        var tenantVal = filterAuditTenant && filterAuditTenant.value || '';
+
+        var filtered = rows.filter(function(r) {
+          if (textVal) {
+            var hay = (
+              (r.tenant_name || '') + ' ' +
+              (r.user_email || '') + ' ' +
+              (r.requested_by_email || '') + ' ' +
+              (r.reason || '')
+            ).toLowerCase();
+            if (hay.indexOf(textVal) === -1) {
+              return false;
+            }
+          }
+
+          if (tenantVal && (r.tenant_name || '') !== tenantVal) {
+            return false;
+          }
+
+          return true;
+        });
+
+        renderAuditRows(filtered);
+      }
+
+      function renderRenderTrackedRepoRows(rows) {
+        if (!rows || !rows.length) {
+          renderTrackedRepoTableWrapper.innerHTML = '<p class="muted">No entries yet.</p>';
+          return;
+        }
+
+        var header = '' +
+          '<table>' +
+            '<thead>' +
+              '<tr>' +
+                '<th>When</th>' +
+                '<th>Tenant</th>' +
+                '<th>User</th>' +
+                '<th>Requested by</th>' +
+                '<th>Reason</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>';
+
+        var body = rows.map(function(r) {
+          return '<tr>' +
+            '<td>' + esc(r.created_at) + '</td>' +
+            '<td>' + esc(r.tenant_name || '') + '</td>' +
+            '<td>' + esc(r.user_email || ('ID ' + r.user_id)) + '</td>' +
+            '<td>' + esc(r.requested_by_email || ('ID ' + r.requested_by)) + '</td>' +
+            '<td>' + esc(r.reason || '') + '</td>' +
+            '</tr>';
+        }).join('');
+
+        var footer = '</tbody></table>';
+        renderTrackedRepoTableWrapper.innerHTML = header + body + footer;
+      }
+
+      function applyRenderTrackedRepoFilters() {
+        var rows = allRenderTrackedRepoRows || [];
+        if (!rows.length) {
+          renderRenderTrackedRepoRows([]);
+          return;
+        }
+
+        var textVal = (filterRenderTrackedRepoText && filterRenderTrackedRepoText.value || '').toLowerCase().trim();
+        var tenantVal = filterRenderTrackedRepoTenant && filterRenderTrackedRepoTenant.value || '';
+
+        var filtered = rows.filter(function(r) {
+          if (textVal) {
+            var hay = (
+              (r.tenant_name || '') + ' ' +
+              (r.user_email || '') + ' ' +
+              (r.requested_by_email || '') + ' ' +
+              (r.reason || '')
+            ).toLowerCase();
+            if (hay.indexOf(textVal) === -1) {
+              return false;
+            }
+          }
+
+          if (tenantVal && (r.tenant_name || '') !== tenantVal) {
+            return false;
+          }
+
+          return true;
+        });
+
+        renderAuditRows(filtered);
       }
 
       function loadUsers() {
@@ -449,36 +619,24 @@ router.get('/', (req, res) => {
                         return;
                       }
                       var rows = auditData.deletions || [];
-                      if (!rows.length) {
-                        auditTableWrapper.innerHTML = '<p class="muted">No deletion records yet.</p>';
-                        return;
+                      allAuditRows = rows;
+
+                      // Populate company filter options from audit rows
+                      if (filterAuditTenant) {
+                        var tenantNames = {};
+                        rows.forEach(function(r) {
+                          if (r.tenant_name) {
+                            tenantNames[r.tenant_name] = true;
+                          }
+                        });
+                        var names = Object.keys(tenantNames).sort();
+                        filterAuditTenant.innerHTML = '<option value="">All companies</option>' +
+                          names.map(function(name) {
+                            return '<option value="' + esc(name) + '\">' + esc(name) + '</option>';
+                          }).join('');
                       }
 
-                      var header = '' +
-                        '<table>' +
-                          '<thead>' +
-                            '<tr>' +
-                              '<th>When</th>' +
-                              '<th>Tenant</th>' +
-                              '<th>User</th>' +
-                              '<th>Requested by</th>' +
-                              '<th>Reason</th>' +
-                            '</tr>' +
-                          '</thead>' +
-                          '<tbody>';
-
-                      var body = rows.map(function(r) {
-                        return '<tr>' +
-                          '<td>' + esc(r.created_at) + '</td>' +
-                          '<td>' + esc(r.tenant_name || '') + '</td>' +
-                          '<td>' + esc(r.user_email || ('ID ' + r.user_id)) + '</td>' +
-                          '<td>' + esc(r.requested_by_email || ('ID ' + r.requested_by)) + '</td>' +
-                          '<td>' + esc(r.reason || '') + '</td>' +
-                          '</tr>';
-                      }).join('');
-
-                      var footer = '</tbody></table>';
-                      auditTableWrapper.innerHTML = header + body + footer;
+                      applyAuditFilters();
                     })
                     .catch(function(err) {
                       console.error('Error loading audit log:', err);
@@ -518,6 +676,28 @@ router.get('/', (req, res) => {
       if (filterUserCompany) {
         filterUserCompany.addEventListener('change', function() {
           applyUserFilters(true);
+        });
+      }
+
+      if (filterAuditText) {
+        filterAuditText.addEventListener('input', function() {
+          applyAuditFilters();
+        });
+      }
+      if (filterAuditTenant) {
+        filterAuditTenant.addEventListener('change', function() {
+          applyAuditFilters();
+        });
+      }
+
+      if (filterAuditText) {
+        filterAuditText.addEventListener('input', function() {
+          applyAuditFilters();
+        });
+      }
+      if (filterAuditTenant) {
+        filterAuditTenant.addEventListener('change', function() {
+          applyAuditFilters();
         });
       }
 
