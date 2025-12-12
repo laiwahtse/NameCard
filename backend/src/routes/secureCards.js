@@ -238,7 +238,9 @@ router.get('/', (_req, res) => {
           var region = (addressRegionInput.value || '').trim();
           var zipCountry = (addressZipCountryInput.value || '').trim();
 
-          var address = [street, city, region, zipCountry].filter(function(s) { return s; }).join('\n');
+          // Use a literal "\\n" in the client script so the address uses line breaks
+          // without breaking this server-side template string.
+          var address = [street, city, region, zipCountry].filter(function(s) { return s; }).join('\\n');
 
           createCardBtn.disabled = true;
           setStatus('Creating card…', '');
