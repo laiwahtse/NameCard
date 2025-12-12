@@ -37,8 +37,8 @@ router.get('/', (_req, res) => {
 <body>
   <main class="page">
     <div class="brand" style="display:flex; align-items:center; gap:0.5rem;">
-      <img src="/logo/logoCDC.png" alt="CDC logo" style="height:26px; border-radius:4px;" />
-      <img src="/logo/nom.png" alt="Cœur Du Ciel" style="height:20px;" />
+      <img src="/image/logoCDC.png" alt="CDC logo" style="height:26px; border-radius:4px;" />
+      <img src="/image/nom.png" alt="Cœur Du Ciel" style="height:20px;" />
       <span style="font-weight:600; letter-spacing:0.12em; font-size:0.8rem; text-transform:uppercase; color:#b66b4d;">Digital NameCard</span>
     </div>
     <h1>Secure Scan Dashboard</h1>
