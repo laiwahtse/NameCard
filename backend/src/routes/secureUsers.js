@@ -94,6 +94,36 @@ router.get('/', (req, res) => {
 
     <section class="section" id="list-section" style="display:none;">
       <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Existing users</h2>
+      <div id="userFilters" style="display:flex; flex-wrap:wrap; gap:0.6rem; margin:0 0 0.6rem 0; align-items:flex-end;">
+        <div>
+          <label for="filterUserText" style="font-size:0.8rem; color:#444;">Search</label>
+          <input id="filterUserText" type="text" placeholder="Email, name, company" style="width:210px; padding:0.35rem 0.55rem; border-radius:999px; border:1px solid #d9bca5; font-size:0.8rem;" />
+        </div>
+        <div>
+          <label for="filterUserRole" style="font-size:0.8rem; color:#444;">Role</label>
+          <select id="filterUserRole" style="width:150px; padding:0.35rem 0.55rem; border-radius:999px; border:1px solid #d9bca5; font-size:0.8rem; background:#fff;">
+            <option value="">All roles</option>
+            <option value="cdc_admin">cdc_admin</option>
+            <option value="tenant_admin">tenant_admin</option>
+            <option value="manager">manager</option>
+            <option value="employee">employee</option>
+          </select>
+        </div>
+        <div>
+          <label for="filterUserStatus" style="font-size:0.8rem; color:#444;">Status</label>
+          <select id="filterUserStatus" style="width:140px; padding:0.35rem 0.55rem; border-radius:999px; border:1px solid #d9bca5; font-size:0.8rem; background:#fff;">
+            <option value="">All</option>
+            <option value="active">Active</option>
+            <option value="disabled">Disabled</option>
+          </select>
+        </div>
+        <div id="filterCompanyWrapper" style="display:none;">
+          <label for="filterUserCompany" style="font-size:0.8rem; color:#444;">Company</label>
+          <select id="filterUserCompany" style="width:180px; padding:0.35rem 0.55rem; border-radius:999px; border:1px solid #d9bca5; font-size:0.8rem; background:#fff;">
+            <option value="">All companies</option>
+          </select>
+        </div>
+      </div>
       <div id="usersTableWrapper">
         <p class="muted">No users to display.</p>
       </div>
@@ -116,6 +146,11 @@ router.get('/', (req, res) => {
       var auditSection = document.getElementById('audit-section');
       var auditTableWrapper = document.getElementById('auditTableWrapper');
       var usersTableWrapper = document.getElementById('usersTableWrapper');
+      var filterUserText = document.getElementById('filterUserText');
+      var filterUserRole = document.getElementById('filterUserRole');
+      var filterUserStatus = document.getElementById('filterUserStatus');
+      var filterCompanyWrapper = document.getElementById('filterCompanyWrapper');
+      var filterUserCompany = document.getElementById('filterUserCompany');
       var newEmail = document.getElementById('newEmail');
       var newDisplayName = document.getElementById('newDisplayName');
       var newPassword = document.getElementById('newPassword');
@@ -130,6 +165,7 @@ router.get('/', (req, res) => {
       // localStorage. If not present, it will ask once via prompt.
       var authToken = null;
       var currentMe = null;
+      var allUsers = [];
 
       function setStatus(el, message, type) {
         el.textContent = message || '';
@@ -188,6 +224,54 @@ router.get('/', (req, res) => {
         usersTableWrapper.innerHTML = header + rows + footer;
       }
 
+      function applyUserFilters(canDeleteUsers) {
+        var users = allUsers || [];
+        if (!users.length) {
+          renderUsers([], canDeleteUsers);
+          return;
+        }
+
+        var textVal = (filterUserText && filterUserText.value || '').toLowerCase().trim();
+        var roleVal = filterUserRole && filterUserRole.value || '';
+        var statusVal = filterUserStatus && filterUserStatus.value || '';
+        var companyVal = filterUserCompany && filterUserCompany.value || '';
+
+        var filtered = users.filter(function(u) {
+          if (textVal) {
+            var hay = (
+              (u.email || '') + ' ' +
+              (u.display_name || '') + ' ' +
+              (u.tenant_name || '')
+            ).toLowerCase();
+            if (hay.indexOf(textVal) === -1) {
+              return false;
+            }
+          }
+
+          if (roleVal && u.role !== roleVal) {
+            return false;
+          }
+
+          if (statusVal) {
+            var isDisabled = (u.is_active === false);
+            if (statusVal === 'active' && isDisabled) {
+              return false;
+            }
+            if (statusVal === 'disabled' && !isDisabled) {
+              return false;
+            }
+          }
+
+          if (companyVal && (u.tenant_name || '') !== companyVal) {
+            return false;
+          }
+
+          return true;
+        });
+
+        renderUsers(filtered, canDeleteUsers);
+      }
+
       function loadUsers() {
         if (!authToken) {
           accessNote.textContent = 'This page requires an auth token in the x-auth-token header. Paste the token from the secure dashboard login when prompted.';
@@ -211,6 +295,7 @@ router.get('/', (req, res) => {
             var users = data.users || [];
 
             currentMe = me;
+            allUsers = users;
 
             currentUserInfo.textContent = 'Signed in as ' + (me.displayName || me.email || 'user') + ' (' + me.role + ')';
 
@@ -264,7 +349,27 @@ router.get('/', (req, res) => {
 
             if (data.canViewUsers) {
               listSection.style.display = 'block';
-              renderUsers(users, !!data.canDeleteUsers);
+              // Setup company filter options (CDC admin only)
+              if (filterCompanyWrapper && filterUserCompany) {
+                if (me.role === 'cdc_admin') {
+                  var companyNames = {};
+                  (users || []).forEach(function(u) {
+                    if (u.tenant_name) {
+                      companyNames[u.tenant_name] = true;
+                    }
+                  });
+                  var names = Object.keys(companyNames).sort();
+                  filterUserCompany.innerHTML = '<option value="">All companies</option>' +
+                    names.map(function(name) {
+                      return '<option value="' + esc(name) + '">' + esc(name) + '</option>';
+                    }).join('');
+                  filterCompanyWrapper.style.display = 'block';
+                } else {
+                  filterCompanyWrapper.style.display = 'none';
+                }
+              }
+
+              applyUserFilters(!!data.canDeleteUsers);
 
               if (data.canDeleteUsers) {
                 var buttons = usersTableWrapper.querySelectorAll('button[data-user-id]');
@@ -392,6 +497,28 @@ router.get('/', (req, res) => {
             console.error('Error loading users:', err);
             accessNote.textContent = 'Error while loading users.';
           });
+      }
+
+      // Wire up filter inputs
+      if (filterUserText) {
+        filterUserText.addEventListener('input', function() {
+          applyUserFilters(true);
+        });
+      }
+      if (filterUserRole) {
+        filterUserRole.addEventListener('change', function() {
+          applyUserFilters(true);
+        });
+      }
+      if (filterUserStatus) {
+        filterUserStatus.addEventListener('change', function() {
+          applyUserFilters(true);
+        });
+      }
+      if (filterUserCompany) {
+        filterUserCompany.addEventListener('change', function() {
+          applyUserFilters(true);
+        });
       }
 
       createUserBtn.addEventListener('click', function() {
