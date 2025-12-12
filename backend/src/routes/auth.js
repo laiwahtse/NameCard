@@ -69,6 +69,67 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// GET /auth/tenants
+// CDC admin only: list of tenants for assigning users.
+router.get('/tenants', async (req, res) => {
+  const authHeader = req.header('x-auth-token');
+  const token = authHeader && authHeader.trim();
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required.'
+    });
+  }
+
+  const [userIdPart] = token.split(':');
+  const userId = parseInt(userIdPart, 10);
+
+  if (!Number.isFinite(userId)) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid auth token.'
+    });
+  }
+
+  try {
+    const meResult = await pool.query(
+      'SELECT id, role FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (meResult.rowCount === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found for this token.'
+      });
+    }
+
+    const me = meResult.rows[0];
+    if (me.role !== 'cdc_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only CDC admins can list tenants.'
+      });
+    }
+
+    const tenantsResult = await pool.query(
+      'SELECT id, name, slug FROM tenants ORDER BY name'
+    );
+
+    return res.json({
+      success: true,
+      tenants: tenantsResult.rows || []
+    });
+  } catch (err) {
+    console.error('Error loading tenants for /auth/tenants:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while loading tenants.'
+    });
+  }
+});
+
 // POST /auth/users/:id/activate
 // Re-activate a previously soft-deleted user.
 router.post('/users/:id/activate', async (req, res) => {

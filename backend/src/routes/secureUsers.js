@@ -73,6 +73,10 @@ router.get('/', (req, res) => {
           <label for="newPassword">Password</label>
           <input type="password" id="newPassword" />
         </div>
+        <div id="tenantField" style="display:none;">
+          <label for="newTenant">Company / Tenant</label>
+          <select id="newTenant"></select>
+        </div>
         <div>
           <label for="newRole">Role</label>
           <select id="newRole"></select>
@@ -111,6 +115,8 @@ router.get('/', (req, res) => {
       var newEmail = document.getElementById('newEmail');
       var newDisplayName = document.getElementById('newDisplayName');
       var newPassword = document.getElementById('newPassword');
+      var tenantField = document.getElementById('tenantField');
+      var newTenant = document.getElementById('newTenant');
       var newRole = document.getElementById('newRole');
       var createUserBtn = document.getElementById('createUserBtn');
       var createStatus = document.getElementById('createStatus');
@@ -119,6 +125,7 @@ router.get('/', (req, res) => {
       // This page reuses the auth token stored by the secure dashboard in
       // localStorage. If not present, it will ask once via prompt.
       var authToken = null;
+      var currentMe = null;
 
       function setStatus(el, message, type) {
         el.textContent = message || '';
@@ -199,14 +206,47 @@ router.get('/', (req, res) => {
             var me = data.me;
             var users = data.users || [];
 
+            currentMe = me;
+
             currentUserInfo.textContent = 'Signed in as ' + (me.displayName || me.email || 'user') + ' (' + me.role + ')';
 
             if (me.role === 'cdc_admin') {
               accessNote.textContent = 'CDC admin: you can manage users across all tenants and review the deletion audit log below.';
+              if (tenantField) {
+                tenantField.style.display = 'block';
+              }
+              if (newTenant) {
+                // Load tenants for the selector
+                fetch('/auth/tenants', {
+                  headers: { 'x-auth-token': authToken }
+                })
+                  .then(function(resp) { return resp.json(); })
+                  .then(function(tData) {
+                    if (!tData || !tData.success) {
+                      return;
+                    }
+                    var tenants = tData.tenants || [];
+                    if (!tenants.length) {
+                      return;
+                    }
+                    newTenant.innerHTML = tenants.map(function(t) {
+                      return '<option value="' + esc(t.id) + '">' + esc(t.name || t.slug || ('Tenant ' + t.id)) + '</option>';
+                    }).join('');
+                  })
+                  .catch(function(err) {
+                    console.error('Error loading tenants for selector:', err);
+                  });
+              }
             } else if (me.role === 'tenant_admin') {
               accessNote.textContent = 'Tenant admin: you can create and manage manager/employee accounts for your own tenant only.';
+              if (tenantField) {
+                tenantField.style.display = 'none';
+              }
             } else {
               accessNote.textContent = 'This page is read-only for your role. You cannot create or change users.';
+              if (tenantField) {
+                tenantField.style.display = 'none';
+              }
             }
 
             if (data.allowedRoles && data.allowedRoles.length) {
@@ -360,6 +400,15 @@ router.get('/', (req, res) => {
         var displayName = (newDisplayName.value || '').trim();
         var password = newPassword.value || '';
         var role = newRole.value || '';
+        var tenantId = '';
+
+        if (currentMe && currentMe.role === 'cdc_admin') {
+          tenantId = newTenant && newTenant.value || '';
+          if (!tenantId) {
+            setStatus(createStatus, 'Please choose a company/tenant for this user.', 'error');
+            return;
+          }
+        }
 
         if (!email || !password || !role) {
           setStatus(createStatus, 'Please fill email, password and role.', 'error');
@@ -375,7 +424,7 @@ router.get('/', (req, res) => {
             'Content-Type': 'application/json',
             'x-auth-token': authToken
           },
-          body: JSON.stringify({ email: email, displayName: displayName, password: password, role: role })
+          body: JSON.stringify({ email: email, displayName: displayName, password: password, role: role, tenantId: tenantId })
         })
           .then(function(resp) { return resp.json(); })
           .then(function(data) {
