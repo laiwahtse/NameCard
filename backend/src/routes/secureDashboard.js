@@ -147,6 +147,19 @@ router.get('/', (_req, res) => {
         }
       }
 
+      function formatWhen(value) {
+        if (!value) return '';
+        var d = new Date(value);
+        if (isNaN(d.getTime())) return String(value);
+        return d.toLocaleString('en-GB', {
+          year: 'numeric',
+          month: 'short',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).replace(',', '');
+      }
+
       function renderScans(scans) {
         // Update stats first
         if (!scans || !scans.length) {
@@ -212,7 +225,7 @@ router.get('/', (_req, res) => {
 
           return '<tr>' +
             '<td>' + esc(row.id) + '</td>' +
-            '<td>' + esc(row.created_at) + '</td>' +
+            '<td>' + esc(formatWhen(row.created_at)) + '</td>' +
             '<td>' + esc(row.source) + '</td>' +
             '<td>' + esc(row.first_name) + ' ' + esc(row.last_name) + '</td>' +
             '<td>' + esc(row.company) + '</td>' +
