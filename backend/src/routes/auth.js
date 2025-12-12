@@ -69,6 +69,89 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// POST /auth/tenants
+// CDC admin only: create a new tenant (company) with name and optional slug.
+router.post('/tenants', async (req, res) => {
+  const authHeader = req.header('x-auth-token');
+  const token = authHeader && authHeader.trim();
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required.'
+    });
+  }
+
+  const [userIdPart] = token.split(':');
+  const userId = parseInt(userIdPart, 10);
+
+  if (!Number.isFinite(userId)) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid auth token.'
+    });
+  }
+
+  const { name, slug } = req.body || {};
+
+  const trimmedName = (name || '').trim();
+  let trimmedSlug = (slug || '').trim();
+
+  if (!trimmedName) {
+    return res.status(400).json({
+      success: false,
+      message: 'Tenant name is required.'
+    });
+  }
+
+  try {
+    const meResult = await pool.query(
+      'SELECT id, role FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (meResult.rowCount === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found for this token.'
+      });
+    }
+
+    const me = meResult.rows[0];
+    if (me.role !== 'cdc_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only CDC admins can create tenants.'
+      });
+    }
+
+    if (!trimmedSlug) {
+      trimmedSlug = trimmedName.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40) || null;
+    }
+
+    const insertResult = await pool.query(
+      'INSERT INTO tenants (name, slug) VALUES ($1, $2) RETURNING id, name, slug',
+      [trimmedName, trimmedSlug]
+    );
+
+    const tenant = insertResult.rows[0];
+
+    return res.status(201).json({
+      success: true,
+      tenant
+    });
+  } catch (err) {
+    console.error('Error creating tenant via /auth/tenants:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while creating tenant.'
+    });
+  }
+});
+
 // GET /auth/tenants
 // CDC admin only: list of tenants for assigning users.
 router.get('/tenants', async (req, res) => {
