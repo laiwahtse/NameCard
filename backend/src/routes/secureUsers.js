@@ -53,7 +53,7 @@ router.get('/', (req, res) => {
           <p id="accessNote" class="muted" style="margin:0;"></p>
         </div>
         <div>
-          <button id="changeTokenBtn" class="btn">Logout / change user</button>
+          <button id="changeTokenBtn" class="btn">Sign out</button>
         </div>
       </div>
     </section>
