@@ -392,8 +392,13 @@
             }
 
             if (!res.ok) {
-                return res.json().catch(function () { return {}; }).then(function () {
-                    alert('An error occurred while creating the online card. Please try again later.');
+                return res.json().catch(function () { return {}; }).then(function (data) {
+                    var msg = 'An error occurred while creating the online card.';
+                    if (data && data.message) {
+                        msg += '\n\nServer message: ' + data.message;
+                    }
+                    msg += '\n\nStatus code: ' + res.status;
+                    alert(msg);
                     qrContainer.innerHTML = '';
                 });
             }
