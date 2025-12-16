@@ -27,21 +27,24 @@ This folder contains the **Name Card QR Generator** and a small **client CRM/Sca
 ## 1. Main parts
 
 - `index.html`
-  - Employee **Name Card QR Generator** UI.
-  - Generates a vCard QR code that phones can scan to add the contact.
-  - New button under **Company**:
-    - **"Export this company (CSV)"** – downloads employees of that company from the server database.
+  - Public **Name Card QR Generator** UI used on the marketing site.
+  - Generates two QR codes:
+    - **Online** – URL for the hosted NameCard scan page (tracked scans).
+    - **Phone** – direct vCard QR for quick "Add to contacts" on the phone.
+  - Provides a button **"Open export preview"** that leads to `export.html` to download a PNG image combining the card preview and both QR codes (Online + Phone) in a phone‑friendly layout.
 
-- `api/`
+- `api/` (legacy PHP utilities – optional)
   - `save_card.php` – saves employee card data into a SQLite DB (`data/namecard.db`, table `cards`).
   - `get_card.php` – loads card data by `sessionId`.
-  - `export_cards.php` – **new**: exports all cards for a given company as CSV.
+  - `export_cards.php` – exports all cards for a given company as CSV.
     - URL: `api/export_cards.php?company=COMPANY_NAME`.
     - CSV columns: `Company, First Name, Last Name, Mobile, Office, Email, Address, Updated At`.
 
 - `export.html` / `export.js`
-  - Existing **image export** for the card.
-  - Works fully in the browser (no PHP) – downloads a PNG image of the designed card.
+  - Public **image export** for the card.
+  - Works fully in the browser (no PHP) – downloads a PNG image that contains:
+    - The designed card preview at the top.
+    - Two vertically stacked QR sections for **Online** and **Phone**, each with a label and a large QR code, arranged to be easy to scan on phones.
 
 - `clientScanner/`
   - **New mini CRM for clients, separate from employees.**
