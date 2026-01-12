@@ -193,7 +193,26 @@
           >
             Open export preview
           </button>
+          <input type="file" id="bgImageInput" accept="image/*" style="display:none;" />
+          <button type="button" id="changeBgBtn" class="export-link-button" style="margin-left: 0.5rem;">
+            Change background
+          </button>
+          <button type="button" id="toggleMoveModeBtn" class="export-link-button" style="margin-left: 0.5rem;">Move text</button>
         </div>
+        <div id="bgMenu" style="display:none; margin-top:0.5rem; padding:0.75rem; border:1px solid #ddd; border-radius:8px; background:#fff5ef; max-width:560px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;">
+            <button type="button" id="bgUploadBtn" class="export-link-button">Choose image…</button>
+            <button type="button" id="toggleMoveBgBtn" class="export-link-button">Move background</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; width:100%; margin-top:8px;">
+            <label style="font-size:0.9rem; color:#555;"><input type="radio" name="bgFit" id="bgFitCover" value="cover" checked> Cover</label>
+            <label style="font-size:0.9rem; color:#555;"><input type="radio" name="bgFit" id="bgFitContain" value="contain"> Contain</label>
+            <label style="font-size:0.9rem; color:#555; margin-left:auto;">Overlay:
+              <input type="range" id="bgOverlay" min="0" max="0.35" step="0.01" value="0.15" style="vertical-align:middle; width:180px; margin-left:0.35rem;">
+            </label>
+          </div>
+        </div>
+        
       </div>
 
       <div class="qr-section">
@@ -228,5 +247,6 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="script.js"></script>
+  <script src="bg.js"></script>
 </body>
 </html>

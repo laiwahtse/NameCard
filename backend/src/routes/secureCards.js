@@ -62,7 +62,7 @@ router.get('/', (_req, res) => {
       <p id="accessInfo" class="muted"></p>
     </section>
 
-    <section class="section" id="form-section">
+    <section class="section" id="form-section" style="display:none;">
       <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Create NameCard</h2>
       <form id="card-form">
         <div class="grid">
@@ -126,7 +126,7 @@ router.get('/', (_req, res) => {
       </form>
     </section>
 
-    <section class="section" id="preview-section">
+    <section class="section" id="preview-section" style="display:none;">
       <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Live preview</h2>
       <div class="output-section">
         <div class="card-column">
@@ -156,18 +156,306 @@ router.get('/', (_req, res) => {
             </div>
           </div>
         </div>
-        <section class="qr-section" id="result-section" style="display:none;">
-          <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Scan link &amp; QR</h2>
-          <p class="muted">Share this link behind a QR code or short URL. Each scan will be logged in the secure dashboard.</p>
+      </div>
+    </section>
+
+    <section class="section" id="result-section" style="display:none;">
+      <h2 style="font-size:1rem; margin:0 0 0.6rem 0; color:#333;">Scan link &amp; QR</h2>
+      <p class="muted">Share this link behind a QR code or short URL. Each scan will be logged in the secure dashboard.</p>
+      <div class="output-section">
+        <div class="card-column">
+          <div id="cardPreview" class="design-card" style="max-width:560px; width:100%;">
+            <div class="design-text-block">
+              <div class="design-header-row">
+                <img src="/image/logoCDC.png" alt="CDC" class="design-logo" />
+                <div class="design-header-text">
+                  <div class="design-company" id="designCompany">Company</div>
+                </div>
+              </div>
+              <div class="design-name" id="designName">Your Name</div>
+              <div class="design-name-line"></div>
+              <div class="design-position" id="designPosition">Post / Position</div>
+              <div class="design-contact-row">
+                <span class="design-contact-icon">☎</span>
+                <span class="design-line" id="designPhones">+00 0000000000</span>
+              </div>
+              <div class="design-contact-row">
+                <span class="design-contact-icon">✉</span>
+                <span class="design-line" id="designEmail">name@example.com</span>
+              </div>
+              <div class="design-contact-row">
+                <span class="design-contact-icon">📍</span>
+                <span class="design-line" id="designAddress">Address will appear here</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="qr-section">
           <p id="scanUrlText" style="font-size:0.85rem; word-break:break-all; margin-bottom:0.5rem;"></p>
           <div id="qrBox" class="qr-box"></div>
-        </section>
+        </div>
       </div>
     </section>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="/secure-static/secure-cards.js"></script>
+  <script>
+    (function() {
+      var accessInfo = document.getElementById('accessInfo');
+      var formSection = document.getElementById('form-section');
+      var previewSection = document.getElementById('preview-section');
+      var resultSection = document.getElementById('result-section');
+      var cardForm = document.getElementById('card-form');
+      var createCardBtn = document.getElementById('createCardBtn');
+      var backToDashboardBtn = document.getElementById('backToDashboardBtn');
+      var createStatus = document.getElementById('createStatus');
+      var scanUrlText = document.getElementById('scanUrlText');
+      var qrBox = document.getElementById('qrBox');
+
+      var firstNameInput = document.getElementById('firstName');
+      var lastNameInput = document.getElementById('lastName');
+      var mobileInput = document.getElementById('mobile');
+      var officeInput = document.getElementById('office');
+      var companyInput = document.getElementById('company');
+      var positionInput = document.getElementById('position');
+      var emailInput = document.getElementById('email');
+      var addressStreetInput = document.getElementById('addressStreet');
+      var addressCityInput = document.getElementById('addressCity');
+      var addressRegionInput = document.getElementById('addressRegion');
+      var addressZipCountryInput = document.getElementById('addressZipCountry');
+
+      var designNameEl = document.getElementById('designName');
+      var designCompanyEl = document.getElementById('designCompany');
+      var designPositionEl = document.getElementById('designPosition');
+      var designPhonesEl = document.getElementById('designPhones');
+      var designEmailEl = document.getElementById('designEmail');
+      var designAddressEl = document.getElementById('designAddress');
+
+      var authToken = '';
+      var currentUser = null;
+
+      function setStatus(message, type) {
+        createStatus.textContent = message || '';
+        createStatus.className = 'status' + (type ? ' ' + type : '');
+      }
+
+      function renderQr(text) {
+        if (!qrBox) return;
+        qrBox.innerHTML = '';
+        if (!text) return;
+        try {
+          new QRCode(qrBox, {
+            text: text,
+            width: 256,
+            height: 256,
+            correctLevel: QRCode.CorrectLevel.L
+          });
+        } catch (e) {
+          qrBox.textContent = 'Unable to generate QR code.';
+        }
+      }
+
+      function updatePreview() {
+        if (!designNameEl || !designCompanyEl || !designPositionEl || !designPhonesEl || !designEmailEl || !designAddressEl) {
+          return;
+        }
+
+        var firstName = (firstNameInput && firstNameInput.value || '').trim();
+        var lastName = (lastNameInput && lastNameInput.value || '').trim();
+        var company = (companyInput && companyInput.value || '').trim();
+        var position = (positionInput && positionInput.value || '').trim();
+        var mobile = (mobileInput && mobileInput.value || '').trim();
+        var office = (officeInput && officeInput.value || '').trim();
+        var email = (emailInput && emailInput.value || '').trim();
+        var street = (addressStreetInput && addressStreetInput.value || '').trim();
+        var city = (addressCityInput && addressCityInput.value || '').trim();
+        var region = (addressRegionInput && addressRegionInput.value || '').trim();
+        var zipCountry = (addressZipCountryInput && addressZipCountryInput.value || '').trim();
+
+        var nameDisplay = (firstName || lastName) ? (firstName + (firstName && lastName ? ' ' : '') + lastName) : 'Your Name';
+        var companyDisplay = company || 'Company';
+        var positionDisplay = position || 'Post / Position';
+
+        var phones = [];
+        if (mobile) phones.push(mobile);
+        if (office) phones.push(office);
+        var phonesDisplay = phones.length ? phones.join(' / ') : '+00 0000000000';
+
+        var emailDisplay = email || 'name@example.com';
+
+        var addressParts = [];
+        if (street) addressParts.push(street);
+        var cityLine = '';
+        if (city) cityLine += city;
+        if (zipCountry) {
+          cityLine += (cityLine ? ' ' : '') + zipCountry;
+        }
+        if (region) {
+          cityLine += (cityLine ? ', ' : '') + region;
+        }
+        if (cityLine) addressParts.push(cityLine);
+        var addressDisplay = addressParts.length ? addressParts.join('\n') : 'Address will appear here';
+
+        designNameEl.textContent = nameDisplay;
+        designCompanyEl.textContent = companyDisplay;
+        designPositionEl.textContent = positionDisplay;
+        designPhonesEl.textContent = phonesDisplay;
+        designEmailEl.textContent = emailDisplay;
+        designAddressEl.textContent = addressDisplay;
+      }
+
+      function loadAuth() {
+        try {
+          authToken = window.localStorage.getItem('nc_auth_token') || '';
+          var userJson = window.localStorage.getItem('nc_auth_user');
+          if (authToken && userJson) {
+            currentUser = JSON.parse(userJson);
+          }
+        } catch (e) {
+          authToken = '';
+          currentUser = null;
+        }
+      }
+
+      function initAccess() {
+        loadAuth();
+        if (!authToken || !currentUser) {
+          accessInfo.textContent = 'You are not signed in. Use the secure dashboard login first, then return here. You will be redirected now.';
+          formSection.style.display = 'none';
+          if (previewSection) previewSection.style.display = 'none';
+          resultSection.style.display = 'none';
+          setTimeout(function() {
+            window.location.href = '/secure-dashboard';
+          }, 1500);
+          return;
+        }
+
+        var role = currentUser.role;
+        if (role === 'cdc_admin' || role === 'tenant_admin' || role === 'manager') {
+          var companyName = currentUser.tenantName || '';
+          if (companyName) {
+            accessInfo.textContent = 'Signed in as ' + (currentUser.displayName || currentUser.email || 'user') + ' (' + role + ') for ' + companyName + '.';
+          } else {
+            accessInfo.textContent = 'Signed in as ' + (currentUser.displayName || currentUser.email || 'user') + ' (' + role + ').';
+          }
+          formSection.style.display = 'block';
+          if (previewSection) previewSection.style.display = 'block';
+          updatePreview();
+        } else {
+          accessInfo.textContent = 'Your role (' + role + ') does not allow creating NameCards. Please contact your administrator.';
+          formSection.style.display = 'none';
+          if (previewSection) previewSection.style.display = 'none';
+          resultSection.style.display = 'none';
+        }
+      }
+
+      if (backToDashboardBtn) {
+        backToDashboardBtn.addEventListener('click', function() {
+          window.location.href = '/secure-dashboard';
+        });
+      }
+
+      if (cardForm) {
+        cardForm.addEventListener('submit', function(evt) {
+          evt.preventDefault();
+
+          if (!authToken) {
+            setStatus('Missing auth token. Please sign in via the secure dashboard first.', 'error');
+            return;
+          }
+
+          var firstName = (firstNameInput.value || '').trim();
+          var lastName = (lastNameInput.value || '').trim();
+          var mobile = (mobileInput.value || '').trim();
+
+          if (!firstName || !lastName || !mobile) {
+            setStatus('Please fill at least first name, last name and mobile.', 'error');
+            return;
+          }
+
+          var office = (officeInput.value || '').trim();
+          var company = (companyInput.value || '').trim();
+          var position = (positionInput.value || '').trim();
+          var email = (emailInput.value || '').trim();
+          var street = (addressStreetInput.value || '').trim();
+          var city = (addressCityInput.value || '').trim();
+          var region = (addressRegionInput.value || '').trim();
+          var zipCountry = (addressZipCountryInput.value || '').trim();
+
+          // Use a literal "\\n" in the client script so the address uses line breaks
+          // without breaking this server-side template string.
+          var address = [street, city, region, zipCountry].filter(function(s) { return s; }).join('\\n');
+
+          createCardBtn.disabled = true;
+          setStatus('Creating card…', '');
+
+          fetch('/api/cards', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-auth-token': authToken
+            },
+            body: JSON.stringify({
+              firstName: firstName,
+              lastName: lastName,
+              mobile: mobile,
+              office: office,
+              company: company,
+              position: position,
+              email: email,
+              address: address,
+              street: street,
+              city: city,
+              region: region,
+              zipCountry: zipCountry
+            })
+          })
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+              createCardBtn.disabled = false;
+              if (!data || !data.success || !data.card || !data.card.scanUrl) {
+                setStatus((data && data.message) || 'Failed to create card.', 'error');
+                return;
+              }
+
+              var scanUrl = data.card.scanUrl;
+              scanUrlText.textContent = scanUrl;
+              renderQr(scanUrl);
+              resultSection.style.display = 'block';
+              setStatus('Card created.', 'ok');
+            })
+            .catch(function(err) {
+              console.error('Error creating card via secure builder:', err);
+              createCardBtn.disabled = false;
+              setStatus('Error while creating card.', 'error');
+            });
+        });
+      }
+
+      var previewInputs = [
+        firstNameInput,
+        lastNameInput,
+        emailInput,
+        addressStreetInput,
+        addressCityInput,
+        addressRegionInput,
+        addressZipCountryInput,
+        mobileInput,
+        officeInput,
+        companyInput,
+        positionInput
+      ];
+
+      previewInputs.forEach(function(el) {
+        if (!el) return;
+        el.addEventListener('input', function() {
+          updatePreview();
+        });
+      });
+
+      initAccess();
+    })();
+  </script>
 </body>
 </html>`);
 });

@@ -30,10 +30,6 @@ app.use(express.json());
 const imageDir = path.resolve(__dirname, '../../image');
 app.use('/image', express.static(imageDir));
 
-// Serve secure builder static assets (JS, CSS)
-const secureStaticDir = path.resolve(__dirname, './public');
-app.use('/secure-static', express.static(secureStaticDir));
-
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });

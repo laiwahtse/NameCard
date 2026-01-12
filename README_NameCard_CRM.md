@@ -67,7 +67,9 @@ This folder contains the **Name Card QR Generator** and a small **client CRM/Sca
 
 ## 2. Databases
 
-Both use **SQLite** in the `data` folder:
+### 2.1 Legacy local SQLite databases (PHP utilities)
+
+The original PHP utilities use **SQLite** in the `data` folder:
 
 - `data/namecard.db`
   - Table `cards`:
@@ -78,6 +80,32 @@ Both use **SQLite** in the `data` folder:
   - Table `clients`:
     - `id` (INTEGER PRIMARY KEY AUTOINCREMENT)
     - `first_name, last_name, company, email, mobile, source, created_at, updated_at`.
+
+These SQLite files are kept for backward compatibility and simple local testing, but the **target internal architecture** is to move this data to SQL Server Express.
+
+### 2.2 Planned internal SQL Server database (NameCardCRM)
+
+For internal, company-side storage (employee cards + mini CRM) we will use **SQL Server Express** with a dedicated database:
+
+- **Database**: `NameCardCRM`
+- **Schemas**:
+  - `namecard` – internal employee / NameCard data
+  - `crm` – client mini-CRM data and optional interactions
+
+Key planned tables (simplified):
+
+- `namecard.Employees`
+  - Links to the multi-tenant world via `TenantId` (matching Neon `tenants.id`).
+  - Public business card fields only (no HR data): first/last name, mobile, office, company, position, email, address fields, optional `ScanUrl`, timestamps.
+
+- `crm.Clients`
+  - Also scoped by `TenantId` so each client admin only sees their own company records.
+  - Fields: first/last name, company, email, mobile, source/note, timestamps.
+
+- (Optional) `crm.Interactions`
+  - Links `Employees` and `Clients` by `TenantId`, `EmployeeId`, `ClientId` to record meetings/QR interactions.
+
+CDC admins have technical access to all tenants, but by policy only client admins manage their own tenant’s employees and clients in day-to-day use.
 
 ## 3. Running with PHP (important for CSV and CRM)
 

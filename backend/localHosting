@@ -1,0 +1,2 @@
+start-local.cmd
+http://localhost:4000/health
